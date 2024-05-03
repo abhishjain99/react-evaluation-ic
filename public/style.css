@@ -1,13 +1,11 @@
-/* Overall Structure */
 #app {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  width: 50%; /* Optional: Set width for responsiveness */
+  width: 50%;
   margin-left: 25%;
 }
 
-/* Inventory Section */
 .inventory-container {
   display: flex;
   flex-direction: column;

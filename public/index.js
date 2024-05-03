@@ -70,6 +70,7 @@ const Model = (() => {
     constructor() {
       this.#inventory = [];
       this.#cart = [];
+      this.#onChange = () => {};
     }
     get cart() {
       return this.#cart;
@@ -79,10 +80,18 @@ const Model = (() => {
       return this.#inventory;
     }
 
-    set cart(newCart) {}
-    set inventory(newInventory) {}
+    set cart(newCart) {
+      this.#cart = newCart;
+      this.#onChange(this.#cart);
+    }
+    set inventory(newInventory) {
+      this.#inventory = newInventory;
+      this.#onChange(this.#inventory);
+    }
 
-    subscribe(cb) {}
+    subscribe(cb) {
+      this.#onChange = cb;
+    }
   }
   const {
     getCart,

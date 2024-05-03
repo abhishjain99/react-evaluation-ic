@@ -1,3 +1,4 @@
+// public/index.js
 const API = (() => {
   const URL = "http://localhost:3000";
   const getCart = async() => {
@@ -114,14 +115,56 @@ const Model = (() => {
 
 const View = (() => {
   // implement your logic for View
-  return {};
+  const inventoryList = document.querySelector(".inventory-container ul");
+  const cartList = document.querySelector(".cart-container ul");
+  const checkoutBtn = document.querySelector(".checkout-btn");
+
+  const renderInventory = (inventory) => {
+    inventoryList.innerHTML = "";
+    inventory.forEach((item) => {
+      console.log('inv', item);
+      var inventoryItem = document.createElement("li");
+      inventoryItem.innerHTML = `
+        <span class="item-content">${item.content}</span>
+        <div class="item-controls">
+          <button class="btn btn-minus" data-id="minus_${item.id}">-</button>
+          <span class="item-amount" data-id="amount_${item.id}" value="0"> 0 </span>
+          <button class="btn btn-plus" data-id="plus_${item.id}">+</button>
+          <button class="btn btn-info" data-id="add_${item.id}" id= "add_${item.id}">add to cart</button>
+        </div>
+      `;
+      inventoryList.appendChild(inventoryItem);
+    });
+  };
+
+  const renderCart = (cart) => {
+    cartList.innerHTML = "";
+    cart.forEach(item => {
+      console.log('cart', item);
+      var cartItem = document.createElement("li");
+      cartItem.innerHTML = `
+        <span class="item-content">${item.content} x ${item.amount}</span>
+        <button class="btn btn-delete" data-id="${item.id}" id= "del_${item.id}">delete</button>
+      `;
+      cartList.appendChild(cartItem);
+    })
+  };
+
+  return {
+    renderInventory,
+    renderCart,
+  };
 })();
 
 const Controller = ((model, view) => {
   // implement your logic for Controller
   const state = new model.State();
 
-  const init = () => {};
+  const init = async () => {
+    await model.getInventory().then((inventory) => View.renderInventory(inventory));
+    await model.getCart().then((cart) => View.renderCart(cart));
+    state.subscribe(View.renderCart);
+  };
   const handleUpdateAmount = () => {};
 
   const handleAddToCart = () => {};
@@ -129,7 +172,9 @@ const Controller = ((model, view) => {
   const handleDelete = () => {};
 
   const handleCheckout = () => {};
-  const bootstrap = () => {};
+  const bootstrap = () => {
+    init()
+  };
   return {
     bootstrap,
   };

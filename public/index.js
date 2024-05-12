@@ -20,7 +20,7 @@ const API = (() => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ...inventoryItem, amount: 1 }),
+      body: JSON.stringify({ ...inventoryItem }),
     });
     return addResponse.json();
   };
@@ -47,8 +47,8 @@ const API = (() => {
 
   const checkout = async() => {
     // you don't need to add anything here
-    return getCart().then((data) =>
-      Promise.all(data.map((item) => deleteFromCart(item.id)))
+    return getCart().then(async (data) =>
+      await Promise.all(data.map((item) => deleteFromCart(item.id)))
     );
   };
 
@@ -69,8 +69,8 @@ const Model = (() => {
     #inventory;
     #cart;
     constructor() {
-      this.#inventory = [];
-      this.#cart = [];
+      this.#inventory = {};
+      this.#cart = {};
       this.#onChange = () => {};
     }
     get cart() {
@@ -117,20 +117,18 @@ const View = (() => {
   // implement your logic for View
   const inventoryList = document.querySelector(".inventory-container ul");
   const cartList = document.querySelector(".cart-container ul");
-  const checkoutBtn = document.querySelector(".checkout-btn");
 
   const renderInventory = (inventory) => {
     inventoryList.innerHTML = "";
     inventory.forEach((item) => {
-      console.log('inv', item);
       var inventoryItem = document.createElement("li");
       inventoryItem.innerHTML = `
-        <span class="item-content">${item.content}</span>
+        <div class="item-content" data-id="content_${item.id}" id="content_${item.id}">${item.content}</div>
         <div class="item-controls">
-          <button class="btn btn-minus" data-id="minus_${item.id}">-</button>
-          <span class="item-amount" data-id="amount_${item.id}" value="0"> 0 </span>
-          <button class="btn btn-plus" data-id="plus_${item.id}">+</button>
-          <button class="btn btn-info" data-id="add_${item.id}" id= "add_${item.id}">add to cart</button>
+          <button class="btn btn-minus" data-id="minus_${item.id}" id="minus_${item.id}">-</button>
+          <span class="item-amount" data-id="amount_${item.id}" id="amount_${item.id}" value="0"> 0 </span>
+          <button class="btn btn-plus" data-id="plus_${item.id}" id="plus_${item.id}">+</button>
+          <button class="btn btn-info btn-add-to-cart" data-id="add_${item.id}" id="add_${item.id}">add to cart</button>
         </div>
       `;
       inventoryList.appendChild(inventoryItem);
@@ -140,11 +138,10 @@ const View = (() => {
   const renderCart = (cart) => {
     cartList.innerHTML = "";
     cart.forEach(item => {
-      console.log('cart', item);
       var cartItem = document.createElement("li");
       cartItem.innerHTML = `
         <span class="item-content">${item.content} x ${item.amount}</span>
-        <button class="btn btn-delete" data-id="${item.id}" id= "del_${item.id}">delete</button>
+        <button class="btn btn-delete" data-id="del_${item.id}" id= "del_${item.id}">delete</button>
       `;
       cartList.appendChild(cartItem);
     })
@@ -156,25 +153,104 @@ const View = (() => {
   };
 })();
 
+
 const Controller = ((model, view) => {
-  // implement your logic for Controller
   const state = new model.State();
 
   const init = async () => {
-    await model.getInventory().then((inventory) => View.renderInventory(inventory));
-    await model.getCart().then((cart) => View.renderCart(cart));
-    state.subscribe(View.renderCart);
+    await model.getInventory().then((inventory) => {
+      for(var item in inventory) {
+        state.inventory[inventory[item].id] = inventory[item];
+      }
+      view.renderInventory(inventory)
+    });
+
+    await model.getCart().then((cart) => {
+      for(var item in cart) {
+        state.cart[cart[item].id] = cart[item];
+      }
+      view.renderCart(cart);
+    });
+
+    state.subscribe(view.renderCart);
   };
-  const handleUpdateAmount = () => {};
 
-  const handleAddToCart = () => {};
+  const handleUpdateAmount = (id, newAmount) => {
+    const cartItem = state.cart[id];
+    cartItem !== undefined ? state.cart[id].amount = newAmount : state.cart[id] = { id: id, amount: newAmount, content: state.inventory[id].content, newItem: true };
+    console.log('cartItem Update Amount', state.cart);
+  };
 
-  const handleDelete = () => {};
+  const handleAddToCart = (id) => {
+    const selectedItem = state.cart[id];
+    console.log('update', selectedItem);
+    // selectedItem['amount'] = state.cart[id].amount;
+    if(selectedItem.newItem) {
+      model.addToCart(selectedItem).then(() => {
+        model.getCart().then((cart) => view.renderCart(cart));
+      });
+      selectedItem['newItem'] = false;
+    } else {
+      model.updateCart(id, selectedItem.amount).then(() => {
+        model.getCart().then((cart) => view.renderCart(cart));
+      });
+    }
+    const amountElement = document.getElementById(`amount_${id}`);
+    amountElement.textContent = 0;
+  };
 
-  const handleCheckout = () => {};
+  const handleDelete = (id) => {
+    model.deleteFromCart(id).then(() => {
+      model.getCart().then((cart) => view.renderCart(cart));
+    }).then(() => {
+      delete state.cart[id];
+      console.log(state.cart);
+    });
+  };
+
+  const handleCheckout = () => {
+    model.checkout().then(() => {
+      location.reload();
+      model.getCart().then((cart) => view.renderCart(cart));
+    });
+  };
+
   const bootstrap = () => {
-    init()
+    init();
+    document.addEventListener("click", (event) => {
+      if(event.target.classList.contains("btn-minus")) {
+        const itemId = event.target.dataset.id.split("_")[1];
+        const amountElement = document.getElementById(`amount_${itemId}`);
+        let newAmount = parseInt(amountElement.textContent) - 1;
+        newAmount = Math.max(newAmount, 0);
+        amountElement.textContent = newAmount;
+        handleUpdateAmount(itemId, (state.cart[itemId] ? state.cart[itemId].amount - 1 : newAmount));
+      }
+      else if (event.target.classList.contains("btn-plus")) {
+        const itemId = event.target.dataset.id.split("_")[1];
+        const amountElement = document.getElementById(`amount_${itemId}`);
+        const newAmount = parseInt(amountElement.textContent) + 1;
+        amountElement.textContent = newAmount;
+        handleUpdateAmount(itemId, (state.cart[itemId] ? state.cart[itemId].amount + 1 : newAmount));
+      }
+      
+      else if (event.target.classList.contains("btn-add-to-cart")) {
+        const itemId = event.target.dataset.id.split("_")[1];
+        handleAddToCart(itemId);
+      }
+      
+      else if (event.target.classList.contains("btn-delete")) {
+        const itemId = event.target.dataset.id.split("_")[1];
+        console.log('itemId btn-delete', itemId);
+        handleDelete(itemId);
+      }
+      
+      else if (event.target.classList.contains("checkout-btn")) {
+        handleCheckout();
+      }
+    });
   };
+
   return {
     bootstrap,
   };

@@ -262,7 +262,7 @@ const Controller = ((model, view) => {
     });
   };
 
-  const handlePage = () => {
+  const handlePagination = () => {
     const pageContainer = document.querySelector(".pagination");
     pageContainer.addEventListener("click", (event) => {
       console.log('event', event.target, state.currentPage, pageNum)
@@ -329,7 +329,7 @@ const Controller = ((model, view) => {
         handleCheckout();
       }
     });
-    handlePage();
+    handlePagination();
   };
 
   return {

@@ -164,11 +164,11 @@ const View = (() => {
   };
 
   const renderPagination = (state, handlePageNumber) => {
-    const totalItems = state.inventory.length;
+    const totalItems = Object.keys(state.inventory).length;
     pageNum = Math.ceil(totalItems / itemsPerPage);
+    console.log('pageNum', totalItems, itemsPerPage, pageNum);
 
     for (let i = 0; i < pageNum; i++) {
-      console.log(pageNum);
       let button = document.createElement("button");
       button.setAttribute("id", `page_${i}`);
       button.classList.add("pagination__pagenum");

@@ -62,23 +62,36 @@ const API = (() => {
   };
 })();
 
+const itemsPerPage = 8;
+let pageNum = 0;
+
 const Model = (() => {
   // implement your logic for Model
   class State {
     #onChange;
     #inventory;
     #cart;
+    #currentPage;
+    #filteredInventory;
+
     constructor() {
       this.#inventory = {};
       this.#cart = {};
       this.#onChange = () => {};
+      this.#currentPage = 0;
     }
+
     get cart() {
       return this.#cart;
     }
-
     get inventory() {
       return this.#inventory;
+    }
+    get currentPage() {
+      return this.#currentPage;
+    }
+    get filteredInventory() {
+      return this.#filteredInventory;
     }
 
     set cart(newCart) {
@@ -88,6 +101,12 @@ const Model = (() => {
     set inventory(newInventory) {
       this.#inventory = newInventory;
       this.#onChange(this.#inventory);
+    }
+    set currentPage(newPage) {
+      this.#currentPage = newPage;
+    }
+    set filteredInventory(newInventory) {
+      this.#filteredInventory = newInventory;
     }
 
     subscribe(cb) {
@@ -102,6 +121,7 @@ const Model = (() => {
     deleteFromCart,
     checkout,
   } = API;
+
   return {
     State,
     getCart,
@@ -117,39 +137,66 @@ const View = (() => {
   // implement your logic for View
   const inventoryList = document.querySelector(".inventory-container ul");
   const cartList = document.querySelector(".cart-container ul");
+  const paginationPage = document.querySelector(".pagination__page");
 
-  const renderInventory = (inventory) => {
+  const renderInventory = (state, page) => {
+    inventory = state.inventory;
     inventoryList.innerHTML = "";
-    inventory.forEach((item) => {
+
+    state.currentPage = page;
+    const start = page * itemsPerPage;
+    const end = start + itemsPerPage;
+    state.filteredInventory = Object.fromEntries(Object.entries(inventory).slice(start, end));
+
+    for(const [id, item] of Object.entries(state.filteredInventory)) {
       var inventoryItem = document.createElement("li");
       inventoryItem.innerHTML = `
-        <div class="item-content" data-id="content_${item.id}" id="content_${item.id}">${item.content}</div>
+        <div class="item-content" data-id="inventory__content-${id}" id="inventory__content-${id}">${item.content}</div>
         <div class="item-controls">
-          <button class="btn btn-minus" data-id="minus_${item.id}" id="minus_${item.id}">-</button>
-          <span class="item-amount" data-id="amount_${item.id}" id="amount_${item.id}" value="0"> 0 </span>
-          <button class="btn btn-plus" data-id="plus_${item.id}" id="plus_${item.id}">+</button>
-          <button class="btn btn-info btn-add-to-cart" data-id="add_${item.id}" id="add_${item.id}">add to cart</button>
+          <button class="btn btn-minus" data-id="inventory__minus-${id}" id="inventory__minus-${id}">-</button>
+          <span class="item-amount" data-id="inventory__amount-${id}" id="inventory__amount-${id}" value="0"> 0 </span>
+          <button class="btn btn-plus" data-id="inventory__plus-${id}" id="inventory__plus-${id}">+</button>
+          <button class="btn btn-info btn-add-to-cart" data-id="inventory__add-${id}" id="inventory__add-${id}">add to cart</button>
         </div>
       `;
       inventoryList.appendChild(inventoryItem);
-    });
+    }
+  };
+
+  const renderPagination = (state, handlePageNumber) => {
+    const totalItems = state.inventory.length;
+    pageNum = Math.ceil(totalItems / itemsPerPage);
+
+    for (let i = 0; i < pageNum; i++) {
+      console.log(pageNum);
+      let button = document.createElement("button");
+      button.setAttribute("id", `page_${i}`);
+      button.classList.add("pagination__pagenum");
+      button.addEventListener("click", () => {
+        renderInventory(state, i);
+        handlePageNumber(i);
+      });
+      button.innerHTML = i + 1;
+      paginationPage.appendChild(button);
+    }
   };
 
   const renderCart = (cart) => {
     cartList.innerHTML = "";
-    cart.forEach(item => {
+    for(const [id, item] of Object.entries(cart)) {
       var cartItem = document.createElement("li");
       cartItem.innerHTML = `
         <span class="item-content">${item.content} x ${item.amount}</span>
-        <button class="btn btn-delete" data-id="del_${item.id}" id= "del_${item.id}">delete</button>
+        <button class="btn btn-delete" data-id="del-${id}" id= "del-${id}">delete</button>
       `;
       cartList.appendChild(cartItem);
-    })
+    }
   };
 
   return {
     renderInventory,
     renderCart,
+    renderPagination
   };
 })();
 
@@ -162,7 +209,10 @@ const Controller = ((model, view) => {
       for(var item in inventory) {
         state.inventory[inventory[item].id] = inventory[item];
       }
-      view.renderInventory(inventory)
+      // view.renderInventory(state, currentPage);
+      view.renderPagination(state, handlePageNumber);
+      handlePageNumber(state.currentPage);
+      state.subscribe(view.renderInventory(state, state.currentPage));
     });
 
     await model.getCart().then((cart) => {
@@ -172,18 +222,16 @@ const Controller = ((model, view) => {
       view.renderCart(cart);
     });
 
-    state.subscribe(view.renderCart);
+    state.subscribe(view.renderCart(state.cart));
   };
 
   const handleUpdateAmount = (id, newAmount) => {
     const cartItem = state.cart[id];
     cartItem !== undefined ? state.cart[id].amount = newAmount : state.cart[id] = { id: id, amount: newAmount, content: state.inventory[id].content, newItem: true };
-    console.log('cartItem Update Amount', state.cart);
   };
 
   const handleAddToCart = (id) => {
     const selectedItem = state.cart[id];
-    console.log('update', selectedItem);
     // selectedItem['amount'] = state.cart[id].amount;
     if(selectedItem.newItem) {
       model.addToCart(selectedItem).then(() => {
@@ -195,7 +243,7 @@ const Controller = ((model, view) => {
         model.getCart().then((cart) => view.renderCart(cart));
       });
     }
-    const amountElement = document.getElementById(`amount_${id}`);
+    const amountElement = document.getElementById(`inventory__amount-${id}`);
     amountElement.textContent = 0;
   };
 
@@ -204,7 +252,6 @@ const Controller = ((model, view) => {
       model.getCart().then((cart) => view.renderCart(cart));
     }).then(() => {
       delete state.cart[id];
-      console.log(state.cart);
     });
   };
 
@@ -215,33 +262,66 @@ const Controller = ((model, view) => {
     });
   };
 
+  const handlePage = () => {
+    const pageContainer = document.querySelector(".pagination");
+    pageContainer.addEventListener("click", (event) => {
+      console.log('event', event.target, state.currentPage, pageNum)
+      if (event.target.classList.contains("pagination__btn-prev") && state.currentPage >= 1) {
+        state.currentPage -= 1;
+        view.renderInventory(state, state.currentPage);
+        handlePageNumber(state.currentPage);
+      } else if (event.target.classList.contains("pagination__btn-next") && state.currentPage < pageNum - 1) {
+        state.currentPage += 1;
+        view.renderInventory(state, state.currentPage);
+        handlePageNumber(state.currentPage);
+      }
+    });
+  };
+
+  const handlePageNumber = (currentPage) => {
+    console.log('handlePageNumber', currentPage);
+    const currentId = `page_${currentPage}`;
+    const buttons = document.querySelectorAll(".pagination__pagenum");
+
+    buttons.forEach((button) => {
+      if (button.id === currentId) {
+        button.style.color = "black";
+        button.style.textDecoration = "none";
+        button.style.fontWeight = "bold";
+      } else {
+        button.style.color = "rgb(0, 153, 255)";
+        button.style.textDecoration = "underline";
+        button.style.fontWeight = "normal";
+      }
+    });
+  };
+
   const bootstrap = () => {
     init();
     document.addEventListener("click", (event) => {
       if(event.target.classList.contains("btn-minus")) {
-        const itemId = event.target.dataset.id.split("_")[1];
-        const amountElement = document.getElementById(`amount_${itemId}`);
+        const itemId = event.target.dataset.id.split("-")[1];
+        const amountElement = document.getElementById(`inventory__amount-${itemId}`);
         let newAmount = parseInt(amountElement.textContent) - 1;
         newAmount = Math.max(newAmount, 0);
         amountElement.textContent = newAmount;
         handleUpdateAmount(itemId, (state.cart[itemId] ? state.cart[itemId].amount - 1 : newAmount));
       }
       else if (event.target.classList.contains("btn-plus")) {
-        const itemId = event.target.dataset.id.split("_")[1];
-        const amountElement = document.getElementById(`amount_${itemId}`);
+        const itemId = event.target.dataset.id.split("-")[1];
+        const amountElement = document.getElementById(`inventory__amount-${itemId}`);
         const newAmount = parseInt(amountElement.textContent) + 1;
         amountElement.textContent = newAmount;
         handleUpdateAmount(itemId, (state.cart[itemId] ? state.cart[itemId].amount + 1 : newAmount));
       }
       
       else if (event.target.classList.contains("btn-add-to-cart")) {
-        const itemId = event.target.dataset.id.split("_")[1];
+        const itemId = event.target.dataset.id.split("-")[1];
         handleAddToCart(itemId);
       }
       
       else if (event.target.classList.contains("btn-delete")) {
-        const itemId = event.target.dataset.id.split("_")[1];
-        console.log('itemId btn-delete', itemId);
+        const itemId = event.target.dataset.id.split("-")[1];
         handleDelete(itemId);
       }
       
@@ -249,6 +329,7 @@ const Controller = ((model, view) => {
         handleCheckout();
       }
     });
+    handlePage();
   };
 
   return {

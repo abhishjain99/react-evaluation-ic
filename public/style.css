@@ -114,3 +114,23 @@
   margin-top: 10px;
   width: 100%;
 }
+
+.pagination {
+  flex-direction: row;
+  display: flex;
+  color: white;
+}
+
+.pagination__pagenum,
+.pagination__btn {
+  background-color: white;
+  border: 1px solid black;
+  border-radius: 5px;
+  cursor: pointer;
+  margin: 1px;
+  padding: 5px;
+}
+.pagination__btn:disabled {
+  background-color: #CCCCCC !important;
+  color: #888888;
+}
